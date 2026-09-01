@@ -1,0 +1,11 @@
+{
+  "split": "test",
+  "imgsz": 960,
+  "weights": "runs/detect/map_text/weights/best.pt",
+  "metrics": {
+    "mAP50": 0.9412,
+    "mAP50-95": 0.664,
+    "precision": 0.8925,
+    "recall": 0.9444
+  }
+}
