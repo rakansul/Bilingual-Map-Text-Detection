@@ -31,8 +31,8 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
 | **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Generated locally for smoke testing |
 | **Split** | Riyadh: 736 tiles (train + val) · Jeddah: 168 tiles (test) | Verification check set |
  
-Annotations were consolidated from 48 Label Studio CSV exports spanning three delimiter formats. Merging resolved 206 duplicate annotations by retaining the richer copy of each pair.
- 
+Annotations were consolidated from Label Studio CSV exports across multiple exports, then merged. 
+
 A 20-tile synthetic sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone. These tiles are **not** real map data and are not representative of model performance — they exist only to confirm the pipeline executes end to end.
  
 > **On the split strategy.** Splits are partitioned by city, not randomly. Tiles from the same urban area share font typography, layout styling, and street-name vocabulary, so a random split would leak that shared structure across train and test. Holding out Jeddah entirely means the test score measures generalization to unseen geography rather than memorization.
