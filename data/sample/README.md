@@ -1,8 +1,15 @@
-# Sample Dataset
-
-This directory contains 20 synthetic pipeline-check tiles and annotations created specifically for environment validation, smoke testing, and verifying that scripts execute cleanly upon cloning.
-
-> **Note on Representativeness:** These sample tiles are not drawn from the real training set and are not distribution-representative. In this check set, bounding boxes have uniform heights (~28.8px), 0% under 12px, and a p95 aspect ratio of 11.67 (compared to 2.9% sub-12px and a p95 aspect ratio of 14.20 on the full dataset reported in [`docs/audit.md`](../../docs/audit.md)).
-
-- `images/`: 20 synthetic check map tiles.
-- `labels/`: Annotations in YOLO bounding box format (`class xc yc w h`, normalised).
+# Sample Tiles
+ 
+Six real map tiles from the Jeddah test split, bundled so the repository runs immediately on clone without downloading the full dataset. Jeddah was held out entirely from training, so detections here reflect genuine unseen-data behavior.
+ 
+- `images/`: 6 rendered OpenStreetMap tiles containing Arabic, English, and mixed labels.
+- `labels/`: Ground-truth annotations in YOLO OBB format (`class x1 y1 x2 y2 x3 y3 x4 y4`, normalized).
+This is a smoke test, not a benchmark. Reported results in the top-level [README](../../README.md) come from the full 168-tile Jeddah split.
+ 
+```bash
+python -m src.predict --weights best.pt --source data/sample/images \
+    --out assets/predictions --imgsz 1024 --compare --save-json
+```
+ 
+Tiles rendered from OpenStreetMap data, © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL. Styling based on OpenStreetMap Carto (CC-BY-SA 2.0).
+ 
