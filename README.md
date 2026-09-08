@@ -8,7 +8,7 @@ Detecting and localising Arabic and English text labels on rendered map tiles.
 
 ---
 
- ## The Problem
+## The Problem
  
 Rendered raster map tiles embed navigational information directly into image pixels: street names, district labels, and points of interest. Because the text is baked into the raster layer, querying a street name requires detecting and localizing the text region first.
  
@@ -24,13 +24,13 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
  
 | Attribute | Full Dataset | Bundled Sample (`data/sample`) |
 |---|---|---|
-| **Tiles** | 904 | 6, from the Jeddah test split |
-| **Labels** | 16,929 oriented boxes (18.7 per tile avg.) | Ground-truth oriented boxes |
+| **Tiles** | 911 | 6, from the Jeddah test split |
+| **Labels** | 17,024 oriented boxes (18.7 per tile avg.) | Ground-truth oriented boxes |
 | **Annotation format** | YOLO OBB (`class x1 y1 x2 y2 x3 y3 x4 y4`), normalized | YOLO OBB, normalized |
 | **Classes** | 1 (`text`) | 1 (`text`) |
 | **Scripts** | Arabic, English, and mixed bilingual labels | Arabic, English, and mixed |
 | **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Rendered OpenStreetMap tiles, Jeddah |
-| **Split** | Riyadh: 736 tiles (train + val) · Jeddah: 168 tiles (test) | Smoke test |
+| **Split** | Riyadh: 628 train, 115 val · Jeddah: 168 test | Smoke test |
  
 Annotations were consolidated and merged from multiple Label Studio CSV exports.
  
@@ -60,7 +60,7 @@ Two architecture generations were trained under identical conditions (same datas
  
 | | v1: YOLO11s-OBB | v2: YOLO26s-OBB |
 |---|---|---|
-| Parameters | 9,699,174 | 9,751,554 |
+| Parameters (fused) | 9,699,174 | 9,751,554 |
 | GFLOPs | 22.4 | 21.7 |
 | Precision | **0.883** | 0.864 |
 | Recall | **0.858** | 0.826 |
@@ -209,6 +209,6 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
  
 ## Author
  
-**Rakan Al-Wehaibi**
+**Rakan Al-Wahaibi**
 Computer Engineering, King Saud University
  
