@@ -7,10 +7,10 @@ Detecting and localising Arabic and English text labels on rendered map tiles.
 *Renderer illustration — Left: input map tile. Right: resolution-scaled bounding boxes with contrasting label chips.*
 
 ---
+
+ ## The Problem
  
-## The Problem
- 
-Rendered raster map tiles embed navigational information directly into image pixels — street names, district labels, and points of interest. Because the text is baked into the raster layer, querying a street name requires detecting and localizing the text region first.
+Rendered raster map tiles embed navigational information directly into image pixels: street names, district labels, and points of interest. Because the text is baked into the raster layer, querying a street name requires detecting and localizing the text region first.
  
 Scene text detectors trained on natural photography transfer poorly to cartographic tiles:
  
@@ -26,7 +26,7 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
 |---|---|---|
 | **Tiles** | 904 | 6, from the Jeddah test split |
 | **Labels** | 16,929 oriented boxes (18.7 per tile avg.) | Ground-truth oriented boxes |
-| **Annotation format** | YOLO OBB — `class x1 y1 x2 y2 x3 y3 x4 y4`, normalized | YOLO OBB, normalized |
+| **Annotation format** | YOLO OBB (`class x1 y1 x2 y2 x3 y3 x4 y4`), normalized | YOLO OBB, normalized |
 | **Classes** | 1 (`text`) | 1 (`text`) |
 | **Scripts** | Arabic, English, and mixed bilingual labels | Arabic, English, and mixed |
 | **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Rendered OpenStreetMap tiles, Jeddah |
@@ -34,7 +34,7 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
  
 Annotations were consolidated and merged from multiple Label Studio CSV exports.
  
-A small sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone: six real tiles from the Jeddah test split — the city held out from training — with their ground-truth oriented boxes. Detections on these tiles reflect genuine unseen-data behavior. Six tiles is a smoke test, not a benchmark; the reported metrics come from the full 168-tile split.
+A small sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone: six real tiles from the Jeddah test split, the city held out from training, with their ground-truth oriented boxes. Detections on these tiles reflect genuine unseen-data behavior. Six tiles is a smoke test, not a benchmark; the reported metrics come from the full 168-tile split.
  
 > **On the split strategy.** Splits are partitioned by city, not randomly. Tiles from the same urban area share font typography, layout styling, and street-name vocabulary, so a random split would leak that shared structure across train and test. Holding out Jeddah entirely means the test score measures generalization to unseen geography rather than memorization.
  
@@ -56,9 +56,9 @@ Other design decisions:
  
 ## Model Comparison
  
-Two architecture generations were trained under identical conditions — same dataset, same augmentation settings, same `imgsz=1024` — and evaluated on the held-out Jeddah split.
+Two architecture generations were trained under identical conditions (same dataset, same augmentation settings, same `imgsz=1024`) and evaluated on the held-out Jeddah split.
  
-| | v1 — YOLO11s-OBB | v2 — YOLO26s-OBB |
+| | v1: YOLO11s-OBB | v2: YOLO26s-OBB |
 |---|---|---|
 | Parameters | 9,699,174 | 9,751,554 |
 | GFLOPs | 22.4 | 21.7 |
@@ -71,9 +71,9 @@ Two architecture generations were trained under identical conditions — same da
  
 **v2 was selected.** It generalizes marginally better to the unseen city on both mAP metrics, and its postprocessing cost is roughly 20× lower.
  
-The split verdict is not a contradiction. Precision and recall are measured at a single confidence threshold, while mAP integrates across all of them — v2 ranks its detections better overall, while v1 happens to sit at a more favorable operating point at the default threshold. Tuning v2's confidence threshold would likely close the P/R gap.
+The split verdict is not a contradiction. Precision and recall are measured at a single confidence threshold, while mAP integrates across all of them. v2 ranks its detections better overall, while v1 happens to sit at a more favorable operating point at the default threshold. Tuning v2's confidence threshold would likely close the P/R gap.
  
-The postprocessing difference comes from architecture: YOLO26 is end-to-end and predicts without non-maximum suppression. This also removes a specific failure mode — the duplicate overlapping boxes NMS tends to leave on long diagonal labels.
+The postprocessing difference comes from architecture: YOLO26 is end-to-end and predicts without non-maximum suppression. This also removes a specific failure mode: the duplicate overlapping boxes NMS tends to leave on long diagonal labels.
  
 The mAP differences are small enough to sit near noise on 168 test images, and are reported as such.
  
@@ -81,7 +81,7 @@ The mAP differences are small enough to sit near noise on 168 test images, and a
  
 ## Results
  
-Held-out **Jeddah** test split — 168 tiles, 1,965 instances, evaluated at `imgsz=1024`. Full output: [`docs/metrics.md`](docs/metrics.md).
+Held-out **Jeddah** test split: 168 tiles, 1,965 instances, evaluated at `imgsz=1024`. Full output: [`docs/metrics.md`](docs/metrics.md).
  
 | Metric | YOLO26s-OBB |
 |---|---|
@@ -92,11 +92,11 @@ Held-out **Jeddah** test split — 168 tiles, 1,965 instances, evaluated at `img
  
 Environment: Ultralytics 8.4.137, PyTorch 2.11.0+cu128, Tesla T4 (Colab).
  
-These are scores on a city the model never trained on. Validation scores on Riyadh — the training city — are higher, and are reported separately in [`docs/metrics.md`](docs/metrics.md) rather than headlined here.
+These are scores on a city the model never trained on. Validation scores on Riyadh, the training city, are higher, and are reported separately in [`docs/metrics.md`](docs/metrics.md) rather than headlined here.
  
 ### Qualitative Observations & Failure Modes
  
-- **Script handling.** Visual inspection of predictions shows consistent localization across both Arabic and Latin instances. Note that with a single class, nothing in the metrics separates the two — this is an observation from looking at outputs, not a measured result.
+- **Script handling.** Visual inspection of predictions shows consistent localization across both Arabic and English instances. Note that with a single class, nothing in the metrics separates the two. This is an observation from looking at outputs, not a measured result.
 - **Dense intersections.** Where many labels crowd a junction, closely adjacent boxes are occasionally merged or missed.
 - **Low-contrast regions.** Sensitivity drops slightly over textured green areas and shaded topography fills.
 ---
@@ -126,12 +126,12 @@ python -m src.predict \
  
 This writes side-by-side comparisons of the six Jeddah sample tiles to `assets/predictions`, along with detections as JSON.
  
-Run the modules with `python -m src.<name>`, not `python src/<name>.py` — the latter puts `src/` on the path instead of the repository root and the internal imports fail.
+Run the modules with `python -m src.<name>`, not `python src/<name>.py`. The latter puts `src/` on the path instead of the repository root and the internal imports fail.
  
 ### 3. Full training & evaluation
  
 ```bash
-# 1. Audit annotations — box sizes, aspect ratios, rotation distribution
+# 1. Audit annotations: box sizes, aspect ratios, rotation distribution
 python -m src.audit_dataset --images dataset/images/train --labels dataset/labels/train --imgsz 1024
  
 # 2. Train
@@ -186,8 +186,8 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
  
 ## Limitations
  
-- **Single-class output.** Detects text presence and location without per-script labels, so Arabic and Latin performance cannot be measured separately.
-- **Detection only.** No transcription — this locates text, it does not read it.
+- **Single-class output.** Detects text presence and location without per-script labels, so Arabic and English performance cannot be measured separately.
+- **Detection only.** No transcription. This locates text, it does not read it.
 - **Two cities.** Training and evaluation both draw on Saudi OSM Carto renderings. Generalization to other renderers, styles, or regions is untested.
 - **Known annotation gap.** 85 rows with missing geometry originate from a single annotator's export folder and were dropped during consolidation. Recoverable by re-exporting that Label Studio project.
 - **Curved labels.** Street names that follow a curve are still approximated by a single rotated quadrilateral.
@@ -203,12 +203,12 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
  
 ## License & Provenance
  
-- **Code:** MIT License — see [LICENSE](LICENSE).
+- **Code:** MIT License. See [LICENSE](LICENSE).
 - **Map data:** OpenStreetMap © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). Styling based on OpenStreetMap Carto (CC-BY-SA 2.0).
 ---
  
 ## Author
  
-**Rakan Al-Wahaibi**
+**Rakan Al-Wehaibi**
 Computer Engineering, King Saud University
  
