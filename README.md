@@ -7,122 +7,158 @@ Detecting and localising Arabic and English text labels on rendered map tiles.
 *Renderer illustration — Left: input map tile. Right: resolution-scaled bounding boxes with contrasting label chips.*
 
 ---
-
 ## The Problem
-
-Rendered raster map tiles embed critical navigational information directly into image pixels — including street names, district labels, and points of interest. Because text is baked into the raster layer, querying street names requires detecting and localizing the text regions first.
-
-Scene text detection models trained on natural photography often transfer poorly to cartographic tiles due to distinct challenges:
-
-- **Small and thin label geometry:** Many street and district names span only 12–16 pixels in height on a 960-pixel tile. Standard downsampling degrades thin character strokes.
-- **Orientation along roadways:** Labels align with underlying road geometry, running horizontally, diagonally, or along curves.
-- **Bilingual scripts:** Arabic is cursive, right-to-left, and connected, while English is discrete and left-to-right. Both scripts frequently appear within the same tile or road corridor.
-- **Complex background features:** Road casing lines, contours, and hatching visually resemble thin character strokes.
-
+ 
+Rendered raster map tiles embed navigational information directly into image pixels — street names, district labels, and points of interest. Because the text is baked into the raster layer, querying a street name requires detecting and localizing the text region first.
+ 
+Scene text detectors trained on natural photography transfer poorly to cartographic tiles:
+ 
+- **Small, thin label geometry.** Many street and district names span only a dozen or so pixels in height on a 1024-pixel tile. Downsampling degrades thin character strokes before the detector ever sees them.
+- **Orientation along roadways.** Labels follow road geometry rather than the image axes. In this dataset, **45% of labels sit more than 10° off horizontal and 26% exceed 30°.**
+- **Bilingual scripts.** Arabic is cursive, right-to-left, and connected; English is discrete and left-to-right. Both appear within the same tile, often along the same road corridor.
+- **Confusable background structure.** Road casing lines, contours, and hatching resemble thin character strokes at low resolution.
 ---
-
+ 
 ## Dataset
-
+ 
 | Attribute | Full Dataset | Bundled Sample (`data/sample`) |
 |---|---|---|
-| **Tiles** | ~1,200 tiles | 20 synthetic check tiles |
-| **Annotations** | YOLO format (`class xc yc w h`, normalised) | YOLO format (`class xc yc w h`, normalised) |
+| **Tiles** | 904 | 20 synthetic check tiles |
+| **Labels** | 16,929 oriented boxes (18.7 per tile avg.) | Synthetic |
+| **Annotation format** | YOLO OBB — `class x1 y1 x2 y2 x3 y3 x4 y4`, normalized | YOLO OBB, normalized |
 | **Classes** | 1 (`text`) | 1 (`text`) |
-| **Scripts** | Arabic, English, and bilingual mixed labels | Synthetic Latin road names (English only) |
-| **Source / Provenance** | Rendered tiles from OpenStreetMap (ODbL, Carto style) | Synthetic check tiles for smoke testing |
-| **Split Strategy** | Geographic split: Riyadh (Train/Val), Jeddah (Test) | Verification check set |
-
-A 20-tile synthetic test sample is provided in [`data/sample`](data/sample) so the repository is runnable immediately on clone.
-
-> **Splitting Note:** Splits in the full dataset are partitioned by geographic region rather than random assignment. Tiles from the same urban area share font typography, layout styling, and street naming vocabulary; random splitting would risk data leakage between splits.
-
+| **Scripts** | Arabic, English, and mixed bilingual labels | Synthetic Latin road names only |
+| **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Generated locally for smoke testing |
+| **Split** | Riyadh: 736 tiles (train + val) · Jeddah: 168 tiles (test) | Verification check set |
+ 
+Annotations were consolidated from 48 Label Studio CSV exports spanning three delimiter formats. Merging resolved 206 duplicate annotations by retaining the richer copy of each pair.
+ 
+A 20-tile synthetic sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone. These tiles are **not** real map data and are not representative of model performance — they exist only to confirm the pipeline executes end to end.
+ 
+> **On the split strategy.** Splits are partitioned by city, not randomly. Tiles from the same urban area share font typography, layout styling, and street-name vocabulary, so a random split would leak that shared structure across train and test. Holding out Jeddah entirely means the test score measures generalization to unseen geography rather than memorization.
+ 
 ---
-
+ 
 ## Approach
-
-The system employs single-class YOLOv8 object detection (`yolov8s`) to localize text regions. Every text occurrence is treated as a unified `text` instance, decoupling text localization from downstream OCR script recognition.
-
-Key design decisions:
-
-- **Training at `imgsz=960`:** Guided by dataset auditing ([`docs/audit.md`](docs/audit.md)), higher input resolution keeps the share of sub-12px boxes to ~2.9%, preserving character edge details.
-- **Rotation augmentation disabled (`degrees=0.0`):** Label angle directly mirrors road orientation; arbitrary rotation injects annotation noise.
-- **Horizontal flipping disabled (`fliplr=0.0`):** Mirrored Arabic script is orthographically invalid.
-- **Single-class formulation:** Separates the spatial problem of finding text from the linguistic problem of reading it.
-
+ 
+Single-class detection with an **oriented bounding box** head. Every text occurrence is one `text` instance, which separates the spatial problem of finding text from the linguistic problem of reading it.
+ 
+**Why OBB rather than axis-aligned boxes.** With 45% of labels past 10° of rotation and 26% past 30°, an axis-aligned box around a diagonal street name swallows a large amount of background map. The box is a poor fit for the object, IoU targets are harder to hit, and any downstream crop hands the OCR stage more noise than text. Rotated four-point polygons fit the label geometry directly.
+ 
+Other design decisions:
+ 
+- **`imgsz=1024`.** Map labels are small objects; training resolution is the main lever on whether thin strokes survive to the feature maps.
+- **Rotation augmentation off (`degrees=0`).** Label angle mirrors road orientation. Rotating the tile injects annotation noise into a signal the model should be learning.
+- **Horizontal flip off (`fliplr=0`).** Mirrored Arabic script is orthographically invalid, and mirrored road layouts are not something the model will encounter.
+- **Single class.** No per-script head at this stage; script routing is deferred to future work.
 ---
-
+ 
+## Model Comparison
+ 
+Two architecture generations were trained under identical conditions — same dataset, same augmentation settings, same `imgsz=1024` — and evaluated on the held-out Jeddah split.
+ 
+| | v1 — YOLO11s-OBB | v2 — YOLO26s-OBB |
+|---|---|---|
+| Parameters | 9,699,174 | 9,751,554 |
+| GFLOPs | 22.4 | 21.7 |
+| Precision | **0.883** | 0.864 |
+| Recall | **0.858** | 0.826 |
+| mAP@50 | 0.837 | **0.848** |
+| mAP@50-95 | 0.502 | **0.514** |
+| Inference | 23.3 ms | 23.4 ms |
+| Postprocess | 8.3 ms | **0.4 ms** |
+ 
+**v2 was selected.** It generalizes marginally better to the unseen city on both mAP metrics, and its postprocessing cost is roughly 20× lower.
+ 
+The split verdict is not a contradiction. Precision and recall are measured at a single confidence threshold, while mAP integrates across all of them — v2 ranks its detections better overall, while v1 happens to sit at a more favorable operating point at the default threshold. Tuning v2's confidence threshold would likely close the P/R gap.
+ 
+The postprocessing difference comes from architecture: YOLO26 is end-to-end and predicts without non-maximum suppression. This also removes a specific failure mode — the duplicate overlapping boxes NMS tends to leave on long diagonal labels.
+ 
+The mAP differences are small enough to sit near noise on 168 test images, and are reported as such.
+ 
+---
+ 
 ## Results
-
-Evaluated on the held-out **Jeddah** test split at `imgsz=960`. Detailed metrics output: [`docs/metrics.md`](docs/metrics.md).
-
-| Metric | Value |
+ 
+Held-out **Jeddah** test split — 168 tiles, 1,965 instances, evaluated at `imgsz=1024`. Full output: [`docs/metrics.md`](docs/metrics.md).
+ 
+| Metric | YOLO26s-OBB |
 |---|---|
-| **mAP@50** | 0.9412 |
-| **mAP@50-95** | 0.6640 |
-| **Precision** | 0.8925 |
-| **Recall** | 0.9444 |
-
+| **mAP@50** | 0.848 |
+| **mAP@50-95** | 0.514 |
+| **Precision** | 0.864 |
+| **Recall** | 0.826 |
+ 
+Environment: Ultralytics 8.4.137, PyTorch 2.11.0+cu128, Tesla T4 (Colab).
+ 
+These are scores on a city the model never trained on. Validation scores on Riyadh — the training city — are higher, and are reported separately in [`docs/metrics.md`](docs/metrics.md) rather than headlined here.
+ 
 ### Qualitative Observations & Failure Modes
-- **Script Handling:** Visual inspection of model predictions indicates consistent bounding box localization across both Arabic and Latin text instances.
-- **Dense Intersections:** In complex intersections with densely packed overlapping labels, Non-Maximum Suppression (NMS) can occasionally merge closely adjacent boxes.
-- **Low-Contrast Regions:** Detection sensitivity decreases slightly over textured green areas and shaded topography fills.
-
+ 
+- **Script handling.** Visual inspection of predictions shows consistent localization across both Arabic and Latin instances. Note that with a single class, nothing in the metrics separates the two — this is an observation from looking at outputs, not a measured result.
+- **Dense intersections.** Where many labels crowd a junction, closely adjacent boxes are occasionally merged or missed.
+- **Low-contrast regions.** Sensitivity drops slightly over textured green areas and shaded topography fills.
 ---
-
+ 
 ## Quickstart
-
-### 1. Clone & Environment Setup
-
+ 
+### 1. Clone & environment
+ 
 ```bash
 git clone https://github.com/rakansul/Bilingual-Map-Text-Detection.git
 cd Bilingual-Map-Text-Detection
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
-
-### 2. Run Inference on Sample Tiles
-
+ 
+### 2. Inference on the sample tiles
+ 
 ```bash
-# Download weights from GitHub Releases (or use local checkpoint)
+# Weights are published under GitHub Releases
 python -m src.predict \
     --weights best.pt \
     --source data/sample/images \
     --out assets/predictions \
+    --imgsz 1024 \
     --compare --save-json
 ```
-
-### 3. Full Training & Evaluation Pipeline
-
+ 
+Run the modules with `python -m src.<name>`, not `python src/<name>.py` — the latter puts `src/` on the path instead of the repository root and the internal imports fail.
+ 
+### 3. Full training & evaluation
+ 
 ```bash
-# 1. Audit dataset annotations
-python -m src.audit_dataset --images datasets/map_text/images/train --labels datasets/map_text/labels/train --imgsz 960
-
-# 2. Train YOLOv8s detector
-python -m src.train --data configs/data.yaml --model yolov8s.pt --epochs 120 --imgsz 960
-
-# 3. Evaluate on held-out test split
-python -m src.evaluate --weights runs/detect/map_text/weights/best.pt --split test --imgsz 960
+# 1. Audit annotations — box sizes, aspect ratios, rotation distribution
+python -m src.audit_dataset --images dataset/images/train --labels dataset/labels/train --imgsz 1024
+ 
+# 2. Train
+python -m src.train --data configs/data.yaml --model yolo26s-obb.pt --imgsz 1024
+ 
+# 3. Evaluate on the held-out Jeddah split
+python -m src.evaluate --weights runs/obb/obb_v2/weights/best.pt --split test --imgsz 1024
 ```
-
-Complete execution instructions: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
-
+ 
+Training runs on a Colab T4 in roughly 1.5 hours. Step-by-step instructions: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+ 
 ---
-
+ 
 ## Repository Layout
-
+ 
 ```
 ├── configs/
 │   ├── data.yaml            # Full dataset configuration
 │   └── data.sample.yaml     # Bundled sample configuration
 ├── src/
 │   ├── __init__.py
-│   ├── audit_dataset.py     # Annotation and box size auditor
-│   ├── draw.py              # Resolution-scaled rendering with Arabic shaping
+│   ├── audit_dataset.py     # Box size, aspect ratio, and rotation auditor
+│   ├── draw.py              # Rotated-polygon rendering with Arabic shaping
 │   ├── evaluate.py          # Validation and metrics generator
-│   ├── make_sample.py       # Generates stratified sample to replace synthetic check set
-│   ├── predict.py           # Inference with visual & JSON export
-│   └── train.py             # YOLOv8 training entry point
-├── data/sample/             # 20 synthetic pipeline-check images and labels
+│   ├── make_sample.py       # Stratified sample builder
+│   ├── predict.py           # OBB inference with visual & JSON export
+│   └── train.py             # Training entry point
+├── notebooks/
+│   └── make_hero.ipynb      # Generates the hero figure from trained weights
+├── data/sample/             # 20 synthetic pipeline-check tiles and labels
 ├── assets/                  # Figures and prediction outputs
 ├── docs/                    # Runbook, dataset audit, and metrics
 ├── scripts/                 # Verification shell scripts
@@ -130,45 +166,46 @@ Complete execution instructions: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 ├── LICENSE
 └── README.md
 ```
-
+ 
 ---
-
-## Visualisation Pipeline
-
-Standard OpenCV `cv2.putText` functions use absolute pixel font sizes and lack right-to-left Arabic glyph shaping.
-
-[`src/draw.py`](src/draw.py) implements dynamic rendering:
-- **Resolution-Scaled Sizing:** Font scale, line thickness, and padding scale proportionally with image dimensions, constrained by minimum and maximum bounds for legibility.
-- **Contrasting Background Chips:** Renders semi-transparent background chips behind text for legibility over dense map backgrounds.
-- **Multilingual Support Groundwork:** Includes integrated Pillow text rendering with `arabic-reshaper` and `python-bidi` for contextual right-to-left Arabic shaping, ready for multi-class and OCR transcription heads.
-
+ 
+## Visualization Pipeline
+ 
+OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-left Arabic glyphs. Neither behavior is acceptable here.
+ 
+[`src/draw.py`](src/draw.py) implements:
+ 
+- **Rotated polygon rendering.** Detections are drawn as four-point polygons via `cv2.polylines`, with the label chip anchored to the topmost corner.
+- **Resolution-scaled sizing.** Font scale, line thickness, and padding derive from image dimensions rather than fixed constants, bounded by minimum and maximum values for legibility. Without this, a label occupying 8.6% of tile height at 256px collapses to 1.1% at 2048px.
+- **Contrasting background chips.** Semi-transparent chips behind label text keep it readable over dense map backgrounds.
+- **Arabic shaping.** A Pillow rendering path with `arabic-reshaper` and `python-bidi` for contextual right-to-left shaping, in place for the eventual OCR transcription head.
 ---
-
+ 
 ## Limitations
-
-- **Axis-Aligned Bounding on Diagonal Roads:** Street names following angled roads are fitted with standard axis-aligned boxes, incorporating some background map context (see aspect ratio analysis in [`docs/audit.md`](docs/audit.md)).
-- **Single-Class Output:** Identifies text presence and location without per-script labels.
-- **Detection Only:** Focuses on spatial localization rather than text transcription/OCR.
-
+ 
+- **Single-class output.** Detects text presence and location without per-script labels, so Arabic and Latin performance cannot be measured separately.
+- **Detection only.** No transcription — this locates text, it does not read it.
+- **Two cities.** Training and evaluation both draw on Saudi OSM Carto renderings. Generalization to other renderers, styles, or regions is untested.
+- **Known annotation gap.** 85 rows with missing geometry originate from a single annotator's export folder and were dropped during consolidation. Recoverable by re-exporting that Label Studio project.
+- **Curved labels.** Street names that follow a curve are still approximated by a single rotated quadrilateral.
 ---
-
+ 
 ## Future Work
-
-- **Oriented Bounding Boxes (YOLOv8-OBB):** Transitioning to rotated 4-point polygon annotations to fit diagonal and curved street names tightly.
-- **Script Classification Head:** Multi-head classification (`text_ar`, `text_en`, `text_mixed`) to route detections to specialized downstream OCR models.
-- **End-to-End OCR Pipeline:** Integrating text recognition for complete map transcription.
-- **FastAPI Inference Microservice:** Lightweight REST API for automated tile inference.
-
+ 
+- **Script classification head.** Multi-class output (`text_ar`, `text_en`, `text_mixed`) to route detections to script-appropriate OCR models.
+- **End-to-end OCR.** Text recognition on top of detection for complete map transcription.
+- **Confidence threshold sweep.** v2's precision and recall are reported at the default threshold; a sweep would find its actual operating point.
+- **Web demo.** A local service accepting a map tile and returning detected text regions.
 ---
-
+ 
 ## License & Provenance
-
+ 
 - **Code:** MIT License — see [LICENSE](LICENSE).
-- **Map Data:** OpenStreetMap data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). Map styling based on OpenStreetMap Carto (CC-BY-SA 2.0).
-
+- **Map data:** OpenStreetMap © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). Styling based on OpenStreetMap Carto (CC-BY-SA 2.0).
 ---
-
+ 
 ## Author
-
-**Rakan Al-Wahaibi**  
+ 
+**Rakan Al-Wahaibi**
 Computer Engineering, King Saud University
+ 
