@@ -7,6 +7,7 @@ Detecting and localising Arabic and English text labels on rendered map tiles.
 *Renderer illustration — Left: input map tile. Right: resolution-scaled bounding boxes with contrasting label chips.*
 
 ---
+ 
 ## The Problem
  
 Rendered raster map tiles embed navigational information directly into image pixels — street names, district labels, and points of interest. Because the text is baked into the raster layer, querying a street name requires detecting and localizing the text region first.
@@ -23,17 +24,17 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
  
 | Attribute | Full Dataset | Bundled Sample (`data/sample`) |
 |---|---|---|
-| **Tiles** | 904 | 20 synthetic check tiles |
-| **Labels** | 16,929 oriented boxes (18.7 per tile avg.) | Synthetic |
+| **Tiles** | 904 | 6, from the Jeddah test split |
+| **Labels** | 16,929 oriented boxes (18.7 per tile avg.) | Ground-truth oriented boxes |
 | **Annotation format** | YOLO OBB — `class x1 y1 x2 y2 x3 y3 x4 y4`, normalized | YOLO OBB, normalized |
 | **Classes** | 1 (`text`) | 1 (`text`) |
-| **Scripts** | Arabic, English, and mixed bilingual labels | Synthetic Latin road names only |
-| **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Generated locally for smoke testing |
-| **Split** | Riyadh: 736 tiles (train + val) · Jeddah: 168 tiles (test) | Verification check set |
+| **Scripts** | Arabic, English, and mixed bilingual labels | Arabic, English, and mixed |
+| **Source** | Rendered OpenStreetMap tiles (ODbL, Carto style), Riyadh and Jeddah | Rendered OpenStreetMap tiles, Jeddah |
+| **Split** | Riyadh: 736 tiles (train + val) · Jeddah: 168 tiles (test) | Smoke test |
  
-Annotations were consolidated from Label Studio CSV exports across multiple exports, then merged. 
-
-A 20-tile synthetic sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone. These tiles are **not** real map data and are not representative of model performance — they exist only to confirm the pipeline executes end to end.
+Annotations were consolidated and merged from multiple Label Studio CSV exports.
+ 
+A small sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone: six real tiles from the Jeddah test split — the city held out from training — with their ground-truth oriented boxes. Detections on these tiles reflect genuine unseen-data behavior. Six tiles is a smoke test, not a benchmark; the reported metrics come from the full 168-tile split.
  
 > **On the split strategy.** Splits are partitioned by city, not randomly. Tiles from the same urban area share font typography, layout styling, and street-name vocabulary, so a random split would leak that shared structure across train and test. Holding out Jeddah entirely means the test score measures generalization to unseen geography rather than memorization.
  
@@ -123,6 +124,8 @@ python -m src.predict \
     --compare --save-json
 ```
  
+This writes side-by-side comparisons of the six Jeddah sample tiles to `assets/predictions`, along with detections as JSON.
+ 
 Run the modules with `python -m src.<name>`, not `python src/<name>.py` — the latter puts `src/` on the path instead of the repository root and the internal imports fail.
  
 ### 3. Full training & evaluation
@@ -153,12 +156,12 @@ Training runs on a Colab T4 in roughly 1.5 hours. Step-by-step instructions: [`d
 │   ├── audit_dataset.py     # Box size, aspect ratio, and rotation auditor
 │   ├── draw.py              # Rotated-polygon rendering with Arabic shaping
 │   ├── evaluate.py          # Validation and metrics generator
-│   ├── make_sample.py       # Stratified sample builder
+│   ├── make_sample.py       # Sample set builder
 │   ├── predict.py           # OBB inference with visual & JSON export
 │   └── train.py             # Training entry point
 ├── notebooks/
 │   └── make_hero.ipynb      # Generates the hero figure from trained weights
-├── data/sample/             # 20 synthetic pipeline-check tiles and labels
+├── data/sample/             # 6 Jeddah tiles with ground-truth labels
 ├── assets/                  # Figures and prediction outputs
 ├── docs/                    # Runbook, dataset audit, and metrics
 ├── scripts/                 # Verification shell scripts
