@@ -36,6 +36,15 @@ datasets/map_text/
 
 Labels are YOLO OBB format: `class x1 y1 x2 y2 x3 y3 x4 y4`, normalized.
 
+**On `path` resolution.** Ultralytics resolves a relative `path` against its own
+`datasets_dir` setting, not the current working directory. Either place the
+dataset under that directory, set an absolute `path` in `configs/data.yaml`, or
+point the setting at the repository root:
+
+```bash
+yolo settings datasets_dir="$(pwd)"
+```
+
 **Split by city, not at random.** Riyadh tiles fill train and val; Jeddah tiles
 are held out entirely as test. Tiles from one urban area share font typography,
 layout styling, and street-name vocabulary, so a random split leaks that shared
@@ -49,14 +58,25 @@ Validate annotations, box dimensions, and rotation distribution:
 
 ```bash
 python -m src.audit_dataset \
-    --images datasets/map_text/images/train \
-    --labels datasets/map_text/labels/train \
-    --imgsz 1024
+    --root datasets/map_text \
+    --splits train,val,test \
+    --write docs/audit.md
 ```
 
-This writes [`docs/audit.md`](audit.md). Re-run it whenever the annotation set
-changes, so the audit numbers stay consistent with the dataset table in the
-README.
+Each polygon is denormalized against its own tile before measurement, so the
+pixel figures reflect the rendered tile rather than an assumed size.
+
+`--write` refreshes only the tables between the `<!-- AUDIT:BEGIN -->` and
+`<!-- AUDIT:END -->` markers in [`docs/audit.md`](audit.md); the analysis text
+around them is preserved. Omit `--write` to print the summary without touching
+the file. Re-run whenever the annotation set changes, so the audit numbers stay
+consistent with the dataset table in the README.
+
+A single split can be audited directly:
+
+```bash
+python -m src.audit_dataset --images data/sample/images --labels data/sample/labels
+```
 
 ---
 
@@ -69,15 +89,18 @@ python -m src.train \
     --data configs/data.yaml \
     --model yolo26s-obb.pt \
     --imgsz 1024 \
+    --save-dir runs/obb/obb_v2 \
     --epochs <EPOCHS> \
     --batch <BATCH> \
     --seed <SEED>
 ```
 
-Weights are saved to `runs/obb/obb_v2/weights/best.pt`.
+Weights land in `<save-dir>/weights/best.pt`, so the command above writes
+`runs/obb/obb_v2/weights/best.pt`.
 
-Substitute `yolo11s-obb.pt` to reproduce v1. Both versions were trained under
-identical conditions so the comparison in the README holds.
+To reproduce v1, substitute `--model yolo11s-obb.pt --save-dir runs/obb/obb_v1`.
+Both versions were trained under identical conditions so the comparison in the
+README holds.
 
 **Augmentation constraints.** `degrees=0` and `fliplr=0` are deliberate, not
 oversights. Label angle mirrors road orientation, so rotating a tile injects
@@ -95,10 +118,16 @@ python -m src.evaluate \
     --weights runs/obb/obb_v2/weights/best.pt \
     --data configs/data.yaml \
     --split test \
-    --imgsz 1024
+    --imgsz 1024 \
+    --model-name yolo26s-obb --version v2 --test-city Jeddah
 ```
 
-This updates [`docs/metrics.md`](metrics.md) and [`docs/metrics.json`](metrics.json).
+This rewrites [`docs/metrics.json`](metrics.json) in full, and refreshes only the
+region between the `<!-- METRICS:BEGIN -->` and `<!-- METRICS:END -->` markers in
+[`docs/metrics.md`](metrics.md). The v1 table, the cost comparison, and the
+written analysis sit outside those markers and survive the run. Pass
+`--no-markdown` to update the JSON alone.
+
 Confirm the headline figures in the README match the regenerated files before
 publishing.
 
@@ -127,8 +156,9 @@ fail.
 
 The committed `data/sample/` folder holds six real tiles from the Jeddah test
 split with their ground-truth oriented boxes, so the repository runs immediately
-on clone against genuine unseen data. To rebuild it as a stratified sample from
-your own tiles:
+on clone against genuine unseen data. To rebuild it from your own tiles — sorted
+by annotation density and sampled at a fixed stride, so the result spans sparse
+through dense tiles:
 
 ```bash
 python -m src.make_sample \
@@ -146,6 +176,33 @@ Run the local verification script:
 
 ```bash
 ./scripts/verify_repo.sh
+```
+
+It checks required files, that every sample tile has a matching 9-token OBB label
+file, that no document still points at the pre-rename sample folder, that the
+generated-section markers in `docs/` are intact, that `src/` compiles, and it
+runs the offline self-test.
+
+The self-test can also be run on its own. It needs neither weights nor the full
+dataset — the OBB result object is simulated and the checks run against the six
+bundled tiles:
+
+```bash
+python scripts/selftest.py
+```
+
+It verifies that rotated boxes are rendered as polygons rather than their
+bounding rectangles, that `predict.py` reads `results.obb` when `results.boxes`
+is `None`, that the audit parses 9-token labels, and that the metrics and audit
+writers leave hand-written analysis intact.
+
+The hero figure is a `src.predict` output, not a separate artefact. Regenerate it
+with:
+
+```bash
+python -m src.predict --weights runs/obb/obb_v2/weights/best.pt \
+    --source data/sample/images --out assets/predictions --imgsz 1024 --compare
+cp assets/predictions/Jeddah_569_compare.png assets/hero.png
 ```
 
 Push to GitHub:
