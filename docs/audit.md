@@ -1,21 +1,81 @@
 # Dataset Audit Summary
 
-Generated via `python -m src.audit_dataset --images datasets/map_text/images/train --labels datasets/map_text/labels/train --imgsz 960`.
+Geometry audit of the full annotation set. All figures are measured from the
+label files after conversion to YOLO OBB format, with each four-point polygon
+denormalized against its source tile before measurement.
 
-```
-========================================
-Dataset Audit Summary
-========================================
-Total Images:            1,200
-Total Boxes:             4,862
-Malformed Entries:       0
-Out of Bounds Entries:   0
-Boxes < 12px tall:       142 (2.9%)
-Aspect Ratio (p95):      14.20
-========================================
-```
+All tiles are 1024x1024. Rotation is reported as the deviation of each box's
+long axis from horizontal, in the range 0-90 degrees.
 
-### Analysis & Resolution Rationale
-* **Malformed & Out-of-Bounds**: Zero format errors detected across all annotation text files.
-* **Resolution Impact**: At `imgsz=640` (measured from a separate audit run at `--imgsz 640`), approximately 18.4% of label bounding boxes fell below 12px in height, degrading character stroke features. Raising training resolution to `imgsz=960` drops this proportion to 2.9%, significantly improving model feature extraction for small street names.
-* **Aspect Ratio Distribution (p95 = 14.20)**: High aspect ratio values reflect elongated text along straight and diagonal roads, confirming the utility of oriented bounding box (OBB) formulations in future iterations.
+---
+
+## All splits
+
+| | Value |
+|---|---|
+| Tiles | 911 |
+| Boxes | 17,024 |
+| Malformed lines | 0 |
+| Labels without a matching image | 0 |
+| Axis-aligned (< 0.5°) | 1,307 (7.7%) |
+| Rotated > 10° | 13,814 (81.1%) |
+| Rotated > 30° | 8,340 (49.0%) |
+| Median deviation | 28.5° |
+| Aspect ratio, median / p95 | 3.57 / 7.83 |
+| Short side px, median / p05 | 16.6 / 11.3 |
+| Short side < 12px | 1,383 (8.1%) |
+
+## By split
+
+| | Train (Riyadh) | Val (Riyadh) | Test (Jeddah) |
+|---|---|---|---|
+| Tiles | 628 | 115 | 168 |
+| Boxes | 12,655 | 2,400 | 1,969 |
+| Rotated > 10° | 85.2% | 79.8% | 56.7% |
+| Rotated > 30° | 50.7% | 47.0% | 40.6% |
+| Median deviation | 31.2° | 26.8° | 14.0° |
+| Aspect ratio, median / p95 | 3.47 / 7.71 | 3.25 / 7.43 | 4.54 / 8.68 |
+| Short side px, median | 17.0 | 16.4 | 13.4 |
+| Short side < 12px | 5.1% | 5.9% | 30.1% |
+
+---
+
+## Analysis
+
+**Annotation integrity.** No malformed lines and no orphaned labels across all
+911 tiles. Every label file pairs with an image and parses as a valid four-point
+polygon.
+
+**Rotation justifies the OBB formulation.** Only 7.7% of labels are axis-aligned.
+Four out of five exceed 10° and roughly half exceed 30°, with a median deviation
+of 28.5°. An axis-aligned box drawn around a label at that angle encloses a large
+share of background map, which both weakens the IoU target during training and
+hands a downstream OCR stage more background than text. Rotated quadrilaterals
+fit the geometry directly.
+
+**Aspect ratio confirms the boxes are text-shaped.** A median long-to-short ratio
+of 3.57, with p95 at 7.83, reflects elongated labels running along street
+geometry rather than compact blobs.
+
+**Label size drives the training resolution.** At the native 1024px tile size the
+median box short side is 16.6px, and 8.1% already fall below 12px. Training at
+640 would scale every box by 0.625, putting the median short side near 10px and
+pushing more than half the dataset below the 12px threshold, where thin character
+strokes stop surviving into the feature maps. `imgsz=1024` is the main lever
+protecting small label legibility.
+
+**The held-out split is harder than the training split, in two specific ways.**
+Jeddah labels are smaller: median short side 13.4px against 17.0px in train, and
+30.1% fall below 12px against 5.1%. They are also less rotated: median deviation
+14.0° against 31.2°. The size gap in particular means the test score is measured
+against a genuinely more demanding distribution, not merely an unseen one. This
+is worth keeping in mind when comparing Riyadh validation scores to the headline
+Jeddah figures in [`metrics.md`](metrics.md).
+
+---
+
+## Note on box counts
+
+This audit counts 1,969 boxes in the test split. Evaluation reports 1,965
+instances on the same 168 tiles. The four-box difference has not been traced and
+is noted here rather than reconciled silently.
