@@ -1,6 +1,4 @@
-"""
-Create a stratified sample of dataset tiles and labels.
-"""
+"""Build a density-spanning sample of dataset tiles and labels."""
 
 from __future__ import annotations
 
@@ -24,7 +22,7 @@ def make_sample(images_dir: str, labels_dir: str, out_dir: str, n: int = 20):
         print("No images found in source directory.")
         return
 
-    # Count annotations per tile for stratified sampling
+    # Count annotations per tile to sample evenly from sparse to dense
     counts = []
     for img_p in image_files:
         lbl_p = labels_path / f"{img_p.stem}.txt"
@@ -33,6 +31,7 @@ def make_sample(images_dir: str, labels_dir: str, out_dir: str, n: int = 20):
             cnt = len([line for line in lbl_p.read_text(encoding="utf-8").strip().splitlines() if line.strip()])
         counts.append((cnt, img_p, lbl_p))
 
+    # Sort by annotation density and sample at a fixed stride
     counts.sort(key=lambda x: x[0])
     step = max(1, len(counts) // n)
     sampled = counts[::step][:n]
@@ -46,7 +45,7 @@ def make_sample(images_dir: str, labels_dir: str, out_dir: str, n: int = 20):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create a stratified dataset sample.")
+    parser = argparse.ArgumentParser(description="Build a density-spanning dataset sample.")
     parser.add_argument("--images", required=True, help="Source images directory")
     parser.add_argument("--labels", required=True, help="Source labels directory")
     parser.add_argument("--out", default="data/sample", help="Target output directory")
