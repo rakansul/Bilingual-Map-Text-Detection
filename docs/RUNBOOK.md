@@ -25,10 +25,11 @@ Training and evaluation for this project ran on a Colab T4 with Ultralytics
 
 ## 1. Dataset Configuration
 
-Organize the dataset in the structure defined in `configs/data.yaml`:
+Organize the dataset in the structure defined in `configs/data.yaml`, whose
+`path` key resolves to `datasets/map_text`:
 
 ```
-dataset/
+datasets/map_text/
 ├── images/{train,val,test}/
 └── labels/{train,val,test}/
 ```
@@ -48,8 +49,8 @@ Validate annotations, box dimensions, and rotation distribution:
 
 ```bash
 python -m src.audit_dataset \
-    --images dataset/images/train \
-    --labels dataset/labels/train \
+    --images datasets/map_text/images/train \
+    --labels datasets/map_text/labels/train \
     --imgsz 1024
 ```
 
@@ -131,8 +132,8 @@ your own tiles:
 
 ```bash
 python -m src.make_sample \
-    --images dataset/images/test \
-    --labels dataset/labels/test \
+    --images datasets/map_text/images/test \
+    --labels datasets/map_text/labels/test \
     --out data/sample \
     --n 6
 ```
