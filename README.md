@@ -196,7 +196,7 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
  
 ## Author
  
-**Rakan Al-Wahaibi**
+**Rakan Al-Wehaibi**
 Computer Engineering, King Saud University
  
  
