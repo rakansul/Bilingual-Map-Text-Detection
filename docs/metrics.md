@@ -1,16 +1,72 @@
 # Evaluation Metrics
-
-Evaluated on split `test` at resolution `960x960`.
-
+ 
+All figures below are measured on the **held-out Jeddah test split**: 168 tiles,
+1,965 labeled instances, evaluated at `imgsz=1024`. Jeddah contributes no tiles
+to training or validation, so these are scores on unseen geography.
+ 
+Environment: Ultralytics 8.4.137, PyTorch 2.11.0+cu128, Tesla T4 (Colab).
+ 
+---
+ 
+## v2 — YOLO26s-OBB (selected model)
+ 
 | Metric | Value |
 |---|---|
-| mAP@50 | 0.9412 |
-| mAP@50-95 | 0.6640 |
-| Precision | 0.8925 |
-| Recall | 0.9444 |
-
-*(Note: The breakdown below is a qualitative summary based on manual inspection of test split predictions)*
-
-### Qualitative Observations
-* **Localization Accuracy**: High recall across both Arabic and Latin street names along primary and secondary roads.
-* **Challenging Conditions**: False negatives occur primarily in high-density urban intersections with tight label packing, or low-contrast labels over green parkland textures.
+| mAP@50 | 0.848 |
+| mAP@50-95 | 0.514 |
+| Precision | 0.864 |
+| Recall | 0.826 |
+ 
+## v1 — YOLO11s-OBB
+ 
+| Metric | Value |
+|---|---|
+| mAP@50 | 0.837 |
+| mAP@50-95 | 0.502 |
+| Precision | 0.883 |
+| Recall | 0.858 |
+ 
+---
+ 
+## Cost and throughput
+ 
+| | v1: YOLO11s-OBB | v2: YOLO26s-OBB |
+|---|---|---|
+| Parameters (fused) | 9,699,174 | 9,751,554 |
+| GFLOPs | 22.4 | 21.7 |
+| Inference | 23.3 ms | 23.4 ms |
+| Postprocess | 8.3 ms | 0.4 ms |
+ 
+Both models were trained under identical conditions: the same dataset, the same
+augmentation settings, and the same `imgsz=1024`.
+ 
+v2 was selected. It generalizes marginally better on both mAP metrics, and its
+postprocessing cost is roughly 20x lower because YOLO26 is end-to-end and
+Predicts without non-maximum suppression.
+ 
+v1 leads in precision and recall, while v2 leads in mAP. This is not a
+Contradiction: precision and recall are measured at a single confidence
+threshold, whereas mAP integrates across all of them. v2 ranks its detections
+better overall; v1 happens to sit at a more favorable operating point at the
+default threshold.
+ 
+---
+ 
+## Reading these numbers
+ 
+- On 168 test images, the mAP gap between v1 and v2 is small enough to sit near
+  noise. It is reported as a marginal difference, not a decisive one.
+- The task is single-class detection. Nothing in these metrics separates Arabic
+  from English performance.
+- Detection only. These figures say nothing about transcription accuracy,
+  because no transcription is performed.
+## Qualitative observations
+ 
+From manual inspection of test-split predictions, not from measurement:
+ 
+- Localization is consistent across both Arabic and English instances.
+- False negatives cluster in dense urban intersections where labels pack tightly
+  And adjacent boxes are occasionally merged or missed.
+- Sensitivity drops slightly over low-contrast regions: textured green parkland
+  and shaded topography fills.
+ 
