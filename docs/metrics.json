@@ -1,11 +1,16 @@
 {
+  "model": "yolo26s-obb",
+  "version": "v2",
   "split": "test",
-  "imgsz": 960,
-  "weights": "runs/detect/map_text/weights/best.pt",
+  "test_city": "Jeddah",
+  "images": 168,
+  "instances": 1965,
+  "imgsz": 1024,
+  "weights": "runs/obb/obb_v2/weights/best.pt",
   "metrics": {
-    "mAP50": 0.9412,
-    "mAP50-95": 0.664,
-    "precision": 0.8925,
-    "recall": 0.9444
+    "mAP50": 0.848,
+    "mAP50-95": 0.514,
+    "precision": 0.864,
+    "recall": 0.826
   }
 }
