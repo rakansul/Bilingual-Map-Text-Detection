@@ -15,7 +15,7 @@ Rendered raster map tiles embed navigational information directly into image pix
 Scene text detectors trained on natural photography transfer poorly to cartographic tiles:
  
 - **Small, thin label geometry.** Many street and district names span only a dozen or so pixels in height on a 1024-pixel tile. Downsampling degrades thin character strokes before the detector ever sees them.
-- **Orientation along roadways.** Labels follow road geometry rather than the image axes. In this dataset, **45% of labels sit more than 10° off horizontal and 26% exceed 30°.**
+- **Orientation along roadways.** Labels follow road geometry rather than the image axes. In this dataset, **81% of labels sit more than 10° off horizontal and 49% exceed 30°**, with a median deviation of 28°.
 - **Bilingual scripts.** Arabic is cursive, right-to-left, and connected; English is discrete and left-to-right. Both appear within the same tile, often along the same road corridor.
 - **Confusable background structure.** Road casing lines, contours, and hatching resemble thin character strokes at low resolution.
 ---
@@ -44,7 +44,7 @@ A small sample lives in [`data/sample`](data/sample) so the repository runs imme
  
 Single-class detection with an **oriented bounding box** head. Every text occurrence is one `text` instance, which separates the spatial problem of finding text from the linguistic problem of reading it.
  
-**Why OBB rather than axis-aligned boxes.** With 45% of labels past 10° of rotation and 26% past 30°, an axis-aligned box around a diagonal street name swallows a large amount of background map. The box is a poor fit for the object, IoU targets are harder to hit, and any downstream crop hands the OCR stage more noise than text. Rotated four-point polygons fit the label geometry directly.
+**Why OBB rather than axis-aligned boxes.** With 81% of labels past 10° of rotation and 49% past 30°, an axis-aligned box around a diagonal street name swallows a large amount of background map. The box is a poor fit for the object, IoU targets are harder to hit, and any downstream crop hands the OCR stage more noise than text. Rotated four-point polygons fit the label geometry directly.
  
 Other design decisions:
  
