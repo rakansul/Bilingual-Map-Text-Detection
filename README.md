@@ -92,7 +92,7 @@ Held-out **Jeddah** test split: 168 tiles, 1,965 instances, evaluated at `imgsz=
  
 Environment: Ultralytics 8.4.137, PyTorch 2.11.0+cu128, Tesla T4 (Colab).
  
-These are scores on a city the model never trained on. Validation scores on Riyadh, the training city, are higher, and are reported separately in [`docs/metrics.md`](docs/metrics.md) rather than headlined here.
+These are scores on a city the model never trained on. Validation scores on Riyadh, the training city, are higher; the held-out result is the one headlined here.
  
 ### Qualitative Observations & Failure Modes
  
@@ -128,20 +128,7 @@ This writes side-by-side comparisons of the six Jeddah sample tiles to `assets/p
  
 Run the modules with `python -m src.<name>`, not `python src/<name>.py`. The latter puts `src/` on the path instead of the repository root and the internal imports fail.
  
-### 3. Full training & evaluation
- 
-```bash
-# 1. Audit annotations: box sizes, aspect ratios, rotation distribution
-python -m src.audit_dataset --images dataset/images/train --labels dataset/labels/train --imgsz 1024
- 
-# 2. Train
-python -m src.train --data configs/data.yaml --model yolo26s-obb.pt --imgsz 1024
- 
-# 3. Evaluate on the held-out Jeddah split
-python -m src.evaluate --weights runs/obb/obb_v2/weights/best.pt --split test --imgsz 1024
-```
- 
-Training runs on a Colab T4 in roughly 1.5 hours. Step-by-step instructions: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+Training and evaluation ran on a Colab T4 in roughly 1.5 hours. The full procedure — dataset audit, training, and evaluation against the held-out Jeddah split — is documented in [`docs/RUNBOOK.md`](docs/RUNBOOK.md). The annotated dataset itself is not published.
  
 ---
  
@@ -211,4 +198,5 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
  
 **Rakan Al-Wahaibi**
 Computer Engineering, King Saud University
+ 
  
