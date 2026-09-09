@@ -1,6 +1,10 @@
 # Runbook
 
-Step-by-step reproduction and publishing runbook for Bilingual Map Text Detection.
+Reproduction and publishing steps for Bilingual Map Text Detection.
+
+The annotated dataset is not published with this repository, so steps 1 through 4
+require your own tiles in the layout described below. Steps 5 onward run against
+the bundled sample.
 
 ---
 
@@ -14,95 +18,123 @@ pip install -r requirements.txt
 
 Verify dependencies: `python -c "import ultralytics, cv2, PIL; print('Environment ready')"`
 
+Training and evaluation for this project ran on a Colab T4 with Ultralytics
+8.4.137 and PyTorch 2.11.0+cu128. A full training run takes roughly 1.5 hours.
+
 ---
 
 ## 1. Dataset Configuration
 
-Organize your full dataset in the structure defined in `configs/data.yaml`:
+Organize the dataset in the structure defined in `configs/data.yaml`:
 
 ```
-datasets/map_text/
+dataset/
 ├── images/{train,val,test}/
 └── labels/{train,val,test}/
 ```
 
-**Split by geographic region**: Use Riyadh tiles for training/validation and Jeddah tiles for held-out testing to prevent spatial and styling leakage.
+Labels are YOLO OBB format: `class x1 y1 x2 y2 x3 y3 x4 y4`, normalized.
+
+**Split by city, not at random.** Riyadh tiles fill train and val; Jeddah tiles
+are held out entirely as test. Tiles from one urban area share font typography,
+layout styling, and street-name vocabulary, so a random split leaks that shared
+structure across train and test and the resulting score measures memorization.
 
 ---
 
 ## 2. Dataset Audit
 
-Validate annotations and bounding box dimensions:
+Validate annotations, box dimensions, and rotation distribution:
 
 ```bash
 python -m src.audit_dataset \
-    --images datasets/map_text/images/train \
-    --labels datasets/map_text/labels/train \
-    --imgsz 960
+    --images dataset/images/train \
+    --labels dataset/labels/train \
+    --imgsz 1024
 ```
 
-Refer to [`docs/audit.md`](audit.md) for expected distributions.
+This writes [`docs/audit.md`](audit.md). Re-run it whenever the annotation set
+changes, so the audit numbers stay consistent with the dataset table in the
+README.
 
 ---
 
 ## 3. Training
 
-Train the single-class YOLOv8s detector:
+Train the single-class OBB detector:
 
 ```bash
 python -m src.train \
     --data configs/data.yaml \
-    --model yolov8s.pt \
-    --epochs 120 \
-    --imgsz 960 \
-    --batch 8 \
-    --seed 0
+    --model yolo26s-obb.pt \
+    --imgsz 1024 \
+    --epochs <EPOCHS> \
+    --batch <BATCH> \
+    --seed <SEED>
 ```
 
-Weights will be saved to `runs/detect/map_text/weights/best.pt`.
+Weights are saved to `runs/obb/obb_v2/weights/best.pt`.
+
+Substitute `yolo11s-obb.pt` to reproduce v1. Both versions were trained under
+identical conditions so the comparison in the README holds.
+
+**Augmentation constraints.** `degrees=0` and `fliplr=0` are deliberate, not
+oversights. Label angle mirrors road orientation, so rotating a tile injects
+noise into the signal the model should be learning; mirrored Arabic script is
+orthographically invalid.
 
 ---
 
 ## 4. Evaluation
 
-Evaluate performance on the held-out test split:
+Evaluate on the held-out Jeddah test split:
 
 ```bash
 python -m src.evaluate \
-    --weights runs/detect/map_text/weights/best.pt \
+    --weights runs/obb/obb_v2/weights/best.pt \
     --data configs/data.yaml \
     --split test \
-    --imgsz 960
+    --imgsz 1024
 ```
 
 This updates [`docs/metrics.md`](metrics.md) and [`docs/metrics.json`](metrics.json).
+Confirm the headline figures in the README match the regenerated files before
+publishing.
 
 ---
 
 ## 5. Visual Inference & Predictions
 
-Run inference across sample tiles:
+Run inference over the bundled sample tiles:
 
 ```bash
 python -m src.predict \
-    --weights runs/detect/map_text/weights/best.pt \
+    --weights runs/obb/obb_v2/weights/best.pt \
     --source data/sample/images \
     --out assets/predictions \
+    --imgsz 1024 \
     --compare --save-json
 ```
+
+Run modules with `python -m src.<name>`, not `python src/<name>.py`. The latter
+puts `src/` on the path instead of the repository root and the internal imports
+fail.
 
 ---
 
 ## 6. Build Sample Subset (Optional)
 
-The committed `data/sample/` folder contains synthetic check tiles for clone smoke tests. To replace them with a real stratified sample carved from your full training set:
+The committed `data/sample/` folder holds six real tiles from the Jeddah test
+split with their ground-truth oriented boxes, so the repository runs immediately
+on clone against genuine unseen data. To rebuild it as a stratified sample from
+your own tiles:
 
 ```bash
 python -m src.make_sample \
-    --images datasets/map_text/images/train \
-    --labels datasets/map_text/labels/train \
+    --images dataset/images/test \
+    --labels dataset/labels/test \
     --out data/sample \
-    --n 20
+    --n 6
 ```
 
 ---
@@ -115,15 +147,13 @@ Run the local verification script:
 ./scripts/verify_repo.sh
 ```
 
-Initialize git and push to GitHub:
+Push to GitHub:
 
 ```bash
-git init
 git add .
-git commit -m "Initial release: bilingual map text detection repository"
-git branch -M main
-git remote add origin https://github.com/rakansul/Bilingual-Map-Text-Detection.git
-git push -u origin main
+git commit -m "Update documentation and metrics"
+git push
 ```
 
-Navigate to **Releases** on GitHub, draft tag `v1.0`, and attach `best.pt`.
+Trained weights are distributed through GitHub **Releases** rather than committed
+to the repository. Draft the tag, then attach `best.pt`.
