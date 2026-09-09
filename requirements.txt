@@ -1,4 +1,6 @@
-ultralytics>=8.1.0
+# YOLO26 OBB support requires a recent Ultralytics; 8.4.137 is the version
+# The reported results were produced with.
+ultralytics>=8.4.0
 opencv-python>=4.8.0
 numpy>=1.23.0
 Pillow>=9.5.0
