@@ -34,7 +34,7 @@ Scene text detectors trained on natural photography transfer poorly to cartograp
  
 Annotations were consolidated and merged from multiple Label Studio CSV exports.
  
-A small sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone: six real tiles from the Jeddah test split, the city held out from training, with their ground-truth oriented boxes. Detections on these tiles reflect genuine unseen-data behavior. Six tiles is a smoke test, not a benchmark; the reported metrics come from the full 168-tile split.
+A small sample lives in [`data/sample`](data/sample) so the repository runs immediately on clone: six tiles from the Jeddah test split, the city held out from training, with their ground-truth oriented boxes. Detections on these tiles reflect genuine unseen-data behavior. Six tiles is a smoke test, not a benchmark; the reported metrics come from the full 168-tile split.
  
 > **On the split strategy.** Splits are partitioned by city, not randomly. Tiles from the same urban area share font typography, layout styling, and street-name vocabulary, so a random split would leak that shared structure across train and test. Holding out Jeddah entirely means the test score measures generalization to unseen geography rather than memorization.
  
@@ -44,7 +44,7 @@ A small sample lives in [`data/sample`](data/sample) so the repository runs imme
  
 Single-class detection with an **oriented bounding box** head. Every text occurrence is one `text` instance, which separates the spatial problem of finding text from the linguistic problem of reading it.
  
-**Why OBB rather than axis-aligned boxes.** With 81% of labels past 10° of rotation and 49% past 30°, an axis-aligned box around a diagonal street name swallows a large amount of background map. The box is a poor fit for the object, IoU targets are harder to hit, and any downstream crop hands the OCR stage more noise than text. Rotated four-point polygons fit the label geometry directly.
+**Why OBB rather than axis-aligned boxes.** With 81% of labels past 10° of rotation and 49% past 30°, an axis-aligned box around a diagonal street name swallows a large amount of background map. The box is a poor fit for the object, IoU targets are harder to hit, and any downstream crop passes more noise to the OCR stage than text. Rotated four-point polygons fit the label geometry directly.
  
 Other design decisions:
  
