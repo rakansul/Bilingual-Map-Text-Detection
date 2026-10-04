@@ -189,8 +189,8 @@ OpenCV's `cv2.putText` uses absolute pixel font sizes and cannot shape right-to-
 ---
  
 ## License & Provenance
- 
-- **Code:** MIT License. See [LICENSE](LICENSE).
+
+- **Code and trained weights:** GNU AGPL-3.0. Copyright (c) 2026 Rakan Al-Wehaibi. See [LICENSE](LICENSE). The weights are fine-tuned from Ultralytics YOLO26s-OBB, which is also AGPL-3.0.
 - **Map data:** OpenStreetMap © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/). Styling based on OpenStreetMap Carto (CC-BY-SA 2.0).
 ---
  
