@@ -47,6 +47,55 @@ def _extract_detections(results):
     return polygons, confidences, class_ids, angles
 
 
+def load_model(weights: str):
+    """Load an Ultralytics model once so repeated detect() calls can reuse it."""
+    try:
+        from ultralytics import YOLO
+    except ImportError:
+        raise ImportError("ultralytics is required for inference. Install with `pip install ultralytics`.")
+    return YOLO(weights)
+
+
+def _as_model_input(image):
+    """Normalise a path, BGR ndarray, or PIL image into something model.predict accepts."""
+    if isinstance(image, (str, Path)):
+        return str(image)
+    if isinstance(image, np.ndarray):
+        return image  # Ultralytics treats ndarrays as BGR, matching cv2.imread
+    if hasattr(image, "convert"):  # PIL.Image.Image
+        return cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+    raise TypeError(f"Unsupported image type: {type(image).__name__}")
+
+
+def detect(image, model, imgsz: int = 1024, conf: float = 0.3) -> list[dict]:
+    """Detect map text on one image and return plain, JSON-serialisable dicts.
+
+    Args:
+        image: file path, BGR numpy array (as from cv2.imread), or PIL image.
+        model: object returned by load_model().
+        imgsz: inference resolution.
+        conf: confidence threshold.
+
+    Returns:
+        One dict per detection, with keys polygon (flat list of 8 floats,
+        x1,y1,...,x4,y4 in pixel coordinates), angle_deg, confidence,
+        class_id and class_name.
+    """
+    results = model.predict(_as_model_input(image), imgsz=imgsz, conf=conf, verbose=False)[0]
+    polygons, confidences, class_ids, angles = _extract_detections(results)
+    class_names = getattr(model, "names", {0: "text"})
+    return [
+        {
+            "polygon": [round(v, 2) for v in poly],
+            "angle_deg": round(a, 2) if a is not None else None,
+            "confidence": round(c, 4),
+            "class_id": cid,
+            "class_name": class_names.get(cid, str(cid)) if isinstance(class_names, dict) else str(cid),
+        }
+        for poly, a, c, cid in zip(polygons, angles, confidences, class_ids)
+    ]
+
+
 def run_inference(
     weights: str,
     source: str,
@@ -57,15 +106,10 @@ def run_inference(
     save_json: bool = False,
     boxes_only: bool = False,
 ) -> int:
-    try:
-        from ultralytics import YOLO
-    except ImportError:
-        raise ImportError("ultralytics is required for inference. Install with `pip install ultralytics`.")
-
     out_path = Path(out)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    model = YOLO(weights)
+    model = load_model(weights)
     class_names = getattr(model, "names", {0: "text"})
 
     src_path = Path(source)
@@ -86,15 +130,14 @@ def run_inference(
             print(f"  skipped (unreadable): {img_p.name}")
             continue
 
-        results = model.predict(str(img_p), imgsz=imgsz, conf=conf, verbose=False)[0]
-        polygons, confidences, class_ids, angles = _extract_detections(results)
-        total_detections += len(polygons)
+        dets = detect(orig_img, model, imgsz=imgsz, conf=conf)
+        total_detections += len(dets)
 
         annotated = draw_obb_detections(
             image=orig_img,
-            polygons=polygons,
-            class_ids=class_ids,
-            confidences=confidences,
+            polygons=[d["polygon"] for d in dets],
+            class_ids=[d["class_id"] for d in dets],
+            confidences=[d["confidence"] for d in dets],
             class_names=class_names,
             style=style,
             draw_labels=draw_labels,
@@ -104,25 +147,14 @@ def run_inference(
         save_name = f"{img_p.stem}_compare.png" if compare else f"{img_p.stem}_pred.png"
         cv2.imwrite(str(out_path / save_name), out_img)
 
-        print(f"  {img_p.name}: {len(polygons)} detection(s)")
+        print(f"  {img_p.name}: {len(dets)} detection(s)")
 
         if save_json:
             json_data = {
                 "image": img_p.name,
                 "imgsz": imgsz,
                 "conf_threshold": conf,
-                "detections": [
-                    {
-                        "polygon": [round(v, 2) for v in poly],
-                        "angle_deg": round(a, 2) if a is not None else None,
-                        "confidence": round(c, 4),
-                        "class_id": cid,
-                        "class_name": (
-                            class_names.get(cid, str(cid)) if isinstance(class_names, dict) else str(cid)
-                        ),
-                    }
-                    for poly, a, c, cid in zip(polygons, angles, confidences, class_ids)
-                ],
+                "detections": dets,
             }
             (out_path / f"{img_p.stem}.json").write_text(json.dumps(json_data, indent=2), encoding="utf-8")
 
